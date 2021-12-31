@@ -9,7 +9,7 @@ pub mod pallet {
 		dispatch::{DispatchResult, DispatchResultWithPostInfo},
 		ensure,
 		pallet_prelude::*,
-		sp_runtime::traits::{Hash, Zero},
+		sp_runtime::traits::{AtLeast32BitUnsigned, Bounded, Hash, Zero},
 		traits::{Currency, ExistenceRequirement, Randomness, ReservableCurrency},
 	};
 	use frame_system::{ensure_signed, pallet, pallet_prelude::*};
@@ -26,23 +26,22 @@ pub mod pallet {
 
 	#[pallet::storage]
 	#[pallet::getter(fn kitties_count)]
-	pub(super) type KittiesCount<T> = StorageValue<_, u32>;
+	pub(super) type KittiesCount<T: Config> = StorageValue<_, T::KittyIndex>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn kitties)]
-	pub type Kitties<T> = StorageMap<_, Blake2_128Concat, KittyIndex, Option<Kitty>, ValueQuery>;
+	pub type Kitties<T: Config> =
+		StorageMap<_, Blake2_128Concat, T::KittyIndex, Option<Kitty>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn owner)]
 	pub type Owner<T: Config> =
-		StorageMap<_, Blake2_128Concat, KittyIndex, Option<T::AccountId>, ValueQuery>;
+		StorageMap<_, Blake2_128Concat, T::KittyIndex, Option<T::AccountId>, ValueQuery>;
 
 	#[pallet::storage]
 	#[pallet::getter(fn kitties_list_for_sales)]
 	pub type ListForSale<T: Config> =
-		StorageMap<_, Blake2_128Concat, KittyIndex, Option<BalanceOf<T>>, ValueQuery>;
-
-	type KittyIndex = u32;
+		StorageMap<_, Blake2_128Concat, T::KittyIndex, Option<BalanceOf<T>>, ValueQuery>;
 
 	#[pallet::pallet]
 	#[pallet::generate_store(pub(super) trait Store)]
@@ -55,6 +54,7 @@ pub mod pallet {
 		type Currency: Currency<Self::AccountId> + ReservableCurrency<Self::AccountId>;
 		#[pallet::constant]
 		type StakeForEachKitty: Get<BalanceOf<Self>>;
+		type KittyIndex: Parameter + AtLeast32BitUnsigned + Default + Copy + Bounded;
 	}
 
 	// Errors.
@@ -73,10 +73,10 @@ pub mod pallet {
 	#[pallet::event]
 	#[pallet::generate_deposit(pub(super) fn deposit_event)]
 	pub enum Event<T: Config> {
-		KittyCreate(T::AccountId, KittyIndex),
-		KittyTransfer(T::AccountId, T::AccountId, KittyIndex),
-		KittyListed(T::AccountId, KittyIndex, Option<BalanceOf<T>>),
-		KittySold(T::AccountId, T::AccountId, KittyIndex),
+		KittyCreate(T::AccountId, T::KittyIndex),
+		KittyTransfer(T::AccountId, T::AccountId, T::KittyIndex),
+		KittyListed(T::AccountId, T::KittyIndex, Option<BalanceOf<T>>),
+		KittySold(T::AccountId, T::AccountId, T::KittyIndex),
 	}
 
 	#[pallet::call]
@@ -95,8 +95,8 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn breed(
 			origin: OriginFor<T>,
-			kitty_id_1: KittyIndex,
-			kitty_id_2: KittyIndex,
+			kitty_id_1: T::KittyIndex,
+			kitty_id_2: T::KittyIndex,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			// 繁殖不能是同一个Kitty
@@ -123,7 +123,7 @@ pub mod pallet {
 		#[pallet::weight(0)]
 		pub fn sell(
 			origin: OriginFor<T>,
-			kitty_id: KittyIndex,
+			kitty_id: T::KittyIndex,
 			price: Option<BalanceOf<T>>,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
@@ -141,7 +141,7 @@ pub mod pallet {
 		pub fn transfer(
 			origin: OriginFor<T>,
 			new_owner: T::AccountId,
-			kitty_id: KittyIndex,
+			kitty_id: T::KittyIndex,
 		) -> DispatchResult {
 			let who = ensure_signed(origin)?;
 			// 检查是否是原拥有者
@@ -158,7 +158,7 @@ pub mod pallet {
 
 		// 购买
 		#[pallet::weight(0)]
-		pub fn buy(origin: OriginFor<T>, kitty_id: KittyIndex) -> DispatchResult {
+		pub fn buy(origin: OriginFor<T>, kitty_id: T::KittyIndex) -> DispatchResult {
 			let buyer = ensure_signed(origin)?;
 			// 获取Kitty的所有者
 			let seller = Owner::<T>::get(kitty_id).unwrap();
@@ -222,10 +222,10 @@ pub mod pallet {
 			// Child Kitty的ID
 			let kitty_id = match Self::kitties_count() {
 				Some(id) => {
-					ensure!(id != KittyIndex::max_value(), Error::<T>::KittiesCountOverflow);
+					ensure!(id != T::KittyIndex::max_value(), Error::<T>::KittiesCountOverflow);
 					id
 				}
-				None => 1,
+				None => 1u32.into(),
 			};
 			// 获取质押的金额
 			let stake_amount = T::StakeForEachKitty::get();
@@ -237,7 +237,7 @@ pub mod pallet {
 			// 为Kitty绑定所有人
 			Owner::<T>::insert(kitty_id, Some(owner.clone()));
 			// 更新下一个Kitty的ID
-			KittiesCount::<T>::put(kitty_id + 1);
+			KittiesCount::<T>::put(kitty_id + 1u32.into());
 			// 发出创建事件
 			Self::deposit_event(Event::KittyCreate(owner.clone(), kitty_id));
 			Ok(())
