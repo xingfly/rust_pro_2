@@ -1,18 +1,22 @@
 #![cfg_attr(not(feature = "std"), no_std)]
-
 pub use pallet::*;
-use sp_io::offchain::random_seed;
+
+#[cfg(test)]
+mod mock;
+
+#[cfg(test)]
+mod tests;
 
 #[frame_support::pallet]
 pub mod pallet {
 	use frame_support::{
-		dispatch::{DispatchResult, DispatchResultWithPostInfo},
+		dispatch::DispatchResult,
 		ensure,
 		pallet_prelude::*,
-		sp_runtime::traits::{AtLeast32BitUnsigned, Bounded, Hash, Zero},
+		sp_runtime::traits::{AtLeast32BitUnsigned, Bounded},
 		traits::{Currency, ExistenceRequirement, Randomness, ReservableCurrency},
 	};
-	use frame_system::{ensure_signed, pallet, pallet_prelude::*};
+	use frame_system::{ensure_signed, pallet_prelude::*};
 	use scale_info::TypeInfo;
 	use sp_io::hashing::blake2_128;
 
