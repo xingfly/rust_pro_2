@@ -151,12 +151,17 @@ pub mod pallet {
 			// 检查是否是原拥有者
 			ensure!(Some(who.clone()) == Owner::<T>::get(kitty_id), Error::<T>::NotOwner);
 			// 更新Kitty的拥有者（双方分别释放和重新质押）
-			if let Ok(_) = Self::conversion_stake(&who, &new_owner) {
-				// 更新Kitty的所有者为新的拥有者
-				Owner::<T>::insert(kitty_id, Some(new_owner.clone()));
-				// 发布转移事件
-				Self::deposit_event(Event::KittyTransfer(who, new_owner, kitty_id));
-			}
+			// 获取质押金额
+			let stake_amount = T::StakeForEachKitty::get();
+			// 质押新的拥有者一定金额
+			T::Currency::reserve(&new_owner, stake_amount)
+				.map_err(|_| Error::<T>::NotEnoughBalanceForStaking)?;
+			// 解除旧拥有者的质押
+			T::Currency::unreserve(&who, stake_amount);
+			// 更新Kitty的所有者为新的拥有者
+			Owner::<T>::insert(kitty_id, Some(new_owner.clone()));
+			// 发布转移事件
+			Self::deposit_event(Event::KittyTransfer(who, new_owner, kitty_id));
 			Ok(())
 		}
 
@@ -179,21 +184,19 @@ pub mod pallet {
 				buyer_balance > (kitty_price + stake_amount),
 				Error::<T>::NotEnoughBalanceForBuying
 			);
-			if let Ok(_) = Self::conversion_stake(&seller, &buyer) {
-				// 买家向卖家转账
-				T::Currency::transfer(
-					&buyer,
-					&seller,
-					kitty_price,
-					ExistenceRequirement::KeepAlive,
-				)?;
-				// 更新Kitty的所有者为买家
-				Owner::<T>::insert(kitty_id, Some(buyer.clone()));
-				// 将Kitty从出售列表中移除
-				ListForSale::<T>::remove(kitty_id);
-				// 发出交易完成事件
-				Self::deposit_event(Event::KittySold(buyer, seller, kitty_id));
-			}
+			// 质押新的拥有者一定金额
+			T::Currency::reserve(&buyer, stake_amount)
+				.map_err(|_| Error::<T>::NotEnoughBalanceForStaking)?;
+			// 解除旧拥有者的质押
+			T::Currency::unreserve(&seller, stake_amount);
+			// 买家向卖家转账
+			T::Currency::transfer(&buyer, &seller, kitty_price, ExistenceRequirement::KeepAlive)?;
+			// 更新Kitty的所有者为买家
+			Owner::<T>::insert(kitty_id, Some(buyer.clone()));
+			// 将Kitty从出售列表中移除
+			ListForSale::<T>::remove(kitty_id);
+			// 发出交易完成事件
+			Self::deposit_event(Event::KittySold(buyer, seller, kitty_id));
 			Ok(())
 		}
 	}
@@ -206,20 +209,6 @@ pub mod pallet {
 				<frame_system::Pallet<T>>::extrinsic_index(),
 			);
 			payload.using_encoded(blake2_128)
-		}
-
-		fn conversion_stake(
-			old_owner: &T::AccountId,
-			new_owner: &T::AccountId,
-		) -> Result<(), &'static str> {
-			// 获取质押金额
-			let stake_amount = T::StakeForEachKitty::get();
-			// 质押新的拥有者一定金额
-			T::Currency::reserve(new_owner, stake_amount)
-				.map_err(|_| Error::<T>::NotEnoughBalanceForStaking)?;
-			// 解除旧拥有者的质押
-			T::Currency::unreserve(old_owner, stake_amount);
-			Ok(())
 		}
 
 		fn create_kitty_with_stake(owner: &T::AccountId, dna: [u8; 16]) -> DispatchResult {

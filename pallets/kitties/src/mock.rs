@@ -1,10 +1,11 @@
 use crate as pallet_kitties;
-use sp_core::H256;
 use frame_support::parameter_types;
-use sp_runtime::{
-	traits::{BlakeTwo256, IdentityLookup}, testing::Header,
-};
 use frame_system as system;
+use sp_core::H256;
+use sp_runtime::{
+	testing::Header,
+	traits::{BlakeTwo256, IdentityLookup},
+};
 
 type UncheckedExtrinsic = frame_system::mocking::MockUncheckedExtrinsic<Test>;
 type Block = frame_system::mocking::MockBlock<Test>;
@@ -19,8 +20,8 @@ frame_support::construct_runtime!(
 	{
 		System: frame_system::{Pallet, Call, Config, Storage, Event<T>},
 		SubstrateKitties: pallet_kitties::{Pallet, Call, Storage, Event<T>},
-        Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
-        RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
+		Balances: pallet_balances::{Pallet, Call, Storage, Config<T>, Event<T>},
+		RandomnessCollectiveFlip: pallet_randomness_collective_flip::{Pallet, Storage},
 	}
 );
 
@@ -75,23 +76,22 @@ impl pallet_balances::Config for Test {
 impl pallet_randomness_collective_flip::Config for Test {}
 
 parameter_types! {
-    pub const StakeForEachKitty: u128 = 10_000;
+	pub const StakeForEachKitty: u128 = 10_000;
 }
 
 impl pallet_kitties::Config for Test {
 	type Event = Event;
-    type Randomness = RandomnessCollectiveFlip;
+	type Randomness = RandomnessCollectiveFlip;
 	type KittyIndex = u32;
 	type StakeForEachKitty = StakeForEachKitty;
 	type Currency = Balances;
 }
 
-
 #[macro_export]
 macro_rules! assert_has_event {
 	($x:expr) => {
 		System::assert_has_event(TestEvent::SubstrateKitties($x))
-	}
+	};
 }
 
 pub fn new_test_ext() -> sp_io::TestExternalities {
