@@ -218,7 +218,7 @@ pub mod pallet {
 					ensure!(id != T::KittyIndex::max_value(), Error::<T>::KittiesCountOverflow);
 					id
 				}
-				None => 1u32.into(),
+				None => 0u32.into(),
 			};
 			// 获取质押的金额
 			let stake_amount = T::StakeForEachKitty::get();
